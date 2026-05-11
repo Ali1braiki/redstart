@@ -71,7 +71,7 @@ def _():
     import numpy as np
     import numpy.linalg as la
 
-    return
+    return np, plt, sci
 
 
 @app.cell(hide_code=True)
@@ -131,11 +131,185 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    D'après l'énoncé on a :
+
+    \[
+    \ell = 2 \ \text{m}
+    \]
+
+    La masse du booster est :
+
+    \[
+    M = 1 \ \text{kg}
+    \]
+
+    et la constante gravitationnelle est :
+
+    \[
+    g = 1 \ \text{m/s}^2
+    \]
+    """)
+    return
+
+
+@app.cell
+def _():
+    l = 2
+    M = 1
+    g = 1
+    return M, g, l
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Forces
 
     Compute the cartesian coordinates $f_x$ and $f_y$ of the force applied to the booster by the reactor, functions of $f$, $\theta$ and $\phi$.
     """)
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    On considère une force $\vec f$ de norme $f$ exprimée dans le repère
+    $(x',y')$ :
+
+    $$
+    \vec f
+    =
+    f\cos(\phi)\,\vec e_{y'}
+    -
+    f\sin(\phi)\,\vec e_{x'}
+    $$
+
+    où :
+
+    - $f = \|\vec f\|$ est la norme de la force,
+    - $\vec e_{x'}$ et $\vec e_{y'}$ sont les vecteurs de base du repère $(x',y')$,
+    - $\phi$ représente l’angle de la force dans ce repère.
+
+    ---
+
+    On souhaite exprimer cette même force dans le repère
+    $(x,y)$ de base $(\vec e_x,\vec e_y)$.
+
+    Les deux repères sont liés par une rotation d’angle $\theta$.
+
+    Les relations de changement de base sont :
+
+    $$
+    \vec e_{y'}
+    =
+    \cos(\theta)\,\vec e_y
+    -
+    \sin(\theta)\,\vec e_x
+    $$
+
+    $$
+    \vec e_{x'}
+    =
+    \sin(\theta)\,\vec e_y
+    +
+    \cos(\theta)\,\vec e_x
+    $$
+
+    ---
+
+    On remplace alors $\vec e_{x'}$ et $\vec e_{y'}$
+    dans l’expression de $\vec f$ :
+
+    $$
+    \vec f
+    =
+    f\cos(\phi)
+    \left(
+    \cos(\theta)\,\vec e_y
+    -
+    \sin(\theta)\,\vec e_x
+    \right)
+    -
+    f\sin(\phi)
+    \left(
+    \sin(\theta)\,\vec e_y
+    +
+    \cos(\theta)\,\vec e_x
+    \right)
+    $$
+
+    En développant :
+
+    $$
+    \vec f
+    =
+    f\cos(\phi)\cos(\theta)\,\vec e_y
+    -
+    f\cos(\phi)\sin(\theta)\,\vec e_x
+    -
+    f\sin(\phi)\sin(\theta)\,\vec e_y
+    -
+    f\sin(\phi)\cos(\theta)\,\vec e_x
+    $$
+
+    On regroupe les termes selon les vecteurs de base :
+
+    $$
+    \vec f
+    =
+    f\left(
+    \cos(\phi)\cos(\theta)
+    -
+    \sin(\phi)\sin(\theta)
+    \right)\vec e_y
+    -
+    f\left(
+    \cos(\phi)\sin(\theta)
+    +
+    \sin(\phi)\cos(\theta)
+    \right)\vec e_x
+    $$
+
+    En utilisant les identités trigonométriques :
+
+    $$
+    \cos(a+b)
+    =
+    \cos a \cos b - \sin a \sin b
+    $$
+
+    $$
+    \sin(a+b)
+    =
+    \sin a \cos b + \cos a \sin b
+    $$
+
+    on obtient finalement :
+
+    $$
+    \boxed{
+    \vec f
+    =
+    f\cos(\phi+\theta)\,\vec e_y
+    -
+    f\sin(\phi+\theta)\,\vec e_x
+    }
+    $$
+
+    Cette expression représente la force $\vec f$
+    dans le repère $(x,y)$.
+    """)
+    return
+
+
+@app.cell
+def _(np):
+    def force_components(f, theta, phi):
+        fx = -f * np.sin(theta + phi)
+        fy = f * np.cos(theta + phi)
+        return fx, fy
+
+    return (force_components,)
 
 
 @app.cell(hide_code=True)
@@ -151,6 +325,189 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Center of Mass
+
+    On cherche l’équation différentielle qui gouverne l’évolution de la position du centre de masse du booster :
+
+    $$
+    (x(t),y(t)).
+    $$
+
+    Le booster est soumis à deux actions mécaniques extérieures principales :
+
+    1. la force de poussée du réacteur :
+
+    $$
+    \vec{F}
+    =
+    \begin{bmatrix}
+    f_x \\
+    f_y
+    \end{bmatrix}
+    $$
+
+    2. le poids du booster :
+
+    $$
+    \vec{P}
+    =
+    \begin{bmatrix}
+    0 \\
+    -Mg
+    \end{bmatrix}.
+    $$
+
+    ---
+
+    D’après le principe fondamental de la dynamique appliqué au centre de masse :
+
+    $$
+    M\vec{a}_G = \sum \vec{F}_{ext}
+    $$
+
+    où :
+
+    $$
+    \vec{a}_G
+    =
+    \begin{bmatrix}
+    \ddot{x} \\
+    \ddot{y}
+    \end{bmatrix}
+    $$
+
+    est l’accélération du centre de masse.
+
+    Donc :
+
+    $$
+    M
+    \begin{bmatrix}
+    \ddot{x} \\
+    \ddot{y}
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+    f_x \\
+    f_y
+    \end{bmatrix}
+    +
+    \begin{bmatrix}
+    0 \\
+    -Mg
+    \end{bmatrix}.
+    $$
+
+    Ainsi :
+
+    $$
+    M
+    \begin{bmatrix}
+    \ddot{x} \\
+    \ddot{y}
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+    f_x \\
+    f_y - Mg
+    \end{bmatrix}.
+    $$
+
+    ---
+
+    On en déduit les deux équations scalaires :
+
+    $$
+    M\ddot{x}=f_x
+    $$
+
+    et :
+
+    $$
+    M\ddot{y}=f_y-Mg.
+    $$
+
+    Donc :
+
+    $$
+    \ddot{x}=\frac{f_x}{M}
+    $$
+
+    et :
+
+    $$
+    \ddot{y}=\frac{f_y}{M}-g.
+    $$
+
+    ---
+
+    D’après la question précédente, les composantes de la force de poussée sont :
+
+    $$
+    f_x=-f\sin(\theta+\phi)
+    $$
+
+    et :
+
+    $$
+    f_y=f\cos(\theta+\phi).
+    $$
+
+    En remplaçant dans les équations du mouvement, on obtient :
+
+    $$
+    \ddot{x}
+    =
+    -\frac{f}{M}\sin(\theta+\phi)
+    $$
+
+    et :
+
+    $$
+    \ddot{y}
+    =
+    \frac{f}{M}\cos(\theta+\phi)-g.
+    $$
+
+    ---
+
+    Finalement,
+
+    $$
+    \boxed{
+    \begin{bmatrix}
+    \ddot{x} \\
+    \ddot{y}
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+    -\dfrac{f}{M}\sin(\theta+\phi) \\
+    \dfrac{f}{M}\cos(\theta+\phi)-g
+    \end{bmatrix}
+    }
+    $$
+
+    Cette équation décrit la dynamique de translation du booster. Elle montre que la poussée contrôle simultanément le mouvement horizontal et vertical, tandis que la gravité agit uniquement sur l’axe vertical.
+    """)
+    return
+
+
+@app.cell
+def _(M, force_components, g):
+    def center_of_mass_acceleration(f, theta, phi):
+        fx, fy = force_components(f, theta, phi)
+
+        x_ddot = fx / M
+        y_ddot = fy / M - g
+
+        return x_ddot, y_ddot
+
+    return (center_of_mass_acceleration,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Moment of inertia
 
     Compute the [moment of inertia](https://en.wikipedia.org/wiki/Moment_of_inertia) $J$ of the booster and define the corresponding Python variable `J`.
@@ -161,11 +518,105 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    Le booster est assimilé à une barre homogène de masse \(M\) et de longueur totale \(\ell\).
+
+    Le moment d’inertie d’une barre autour de son centre est donné par :
+
+    \[
+    J = \frac{1}{12} M \ell^2
+    \]
+
+    D’après l’énoncé :
+
+    \[
+    \ell = 2 \ \text{m}, \quad M = 1 \ \text{kg}
+    \]
+
+    Donc :
+
+    \[
+    J = \frac{1}{12} \times 1 \times 2^2
+    \]
+
+    \[
+    J = \frac{1}{12} \times 4 = \frac{1}{3}
+    \]
+
+    Ainsi :
+
+    \[
+    \boxed{
+    J = \frac{1}{3} \ \text{kg}\cdot\text{m}^2
+    }
+    \]
+    """)
+    return
+
+
+@app.cell
+def _(M, l):
+    J = (1.0 / 12.0) * M * l**2
+    J
+    return (J,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Tilt
 
     Give the ordinary differential equation that governs the evolution of the tilt angle $\theta$.
     """)
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    La force est appliquée à la base du booster.
+
+    La composante perpendiculaire de la force vaut :
+
+    $$
+    f\sin(\phi)
+    $$
+
+    Le couple algébrique est donc :
+
+    $$
+    \tau=-\frac{l}{2}f\sin(\phi)
+    $$
+
+    Avec :
+
+    $$
+    J\ddot{\theta}=\tau
+    $$
+
+    on obtient :
+
+    $$
+    J\ddot{\theta}=-\frac{l}{2}f\sin(\phi)
+    $$
+
+    Donc :
+
+    $$
+    \boxed{
+    \ddot{\theta}=-\frac{lf}{2J}\sin(\phi)
+    }
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(J, l, np):
+    def tilt_acceleration(f, phi):
+        theta_ddot = -(l * f / (2 * J)) * np.sin(phi)
+        return theta_ddot
+
+    return (tilt_acceleration,)
 
 
 @app.cell(hide_code=True)
@@ -189,6 +640,126 @@ def _(mo):
     $$
     """)
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    On définit l’état du système par :
+
+    $$
+    s =
+    \begin{bmatrix}
+    x \\
+    v_x \\
+    y \\
+    v_y \\
+    \theta \\
+    \omega
+    \end{bmatrix}
+    $$
+
+    avec :
+
+    $$
+    v_x=\dot{x},
+    \qquad
+    v_y=\dot{y},
+    \qquad
+    \omega=\dot{\theta}.
+    $$
+
+    La dimension de l’espace d’état est donc :
+
+    $$
+    \boxed{n=6}
+    $$
+
+    Les équations du mouvement sont :
+
+    $$
+    \ddot{x}
+    =
+    -\frac{f}{M}\sin(\theta+\phi)
+    $$
+
+    $$
+    \ddot{y}
+    =
+    \frac{f}{M}\cos(\theta+\phi)-g
+    $$
+
+    $$
+    \ddot{\theta}
+    =
+    -\frac{lf}{2J}\sin(\phi)
+    $$
+
+    Donc le système sous forme d’état est :
+
+    $$
+    \dot{s}
+    =
+    F(s,f,\phi)
+    $$
+
+    avec :
+
+    $$
+    F(s,f,\phi)
+    =
+    \begin{bmatrix}
+    v_x \\
+    -\dfrac{f}{M}\sin(\theta+\phi) \\
+    v_y \\
+    \dfrac{f}{M}\cos(\theta+\phi)-g \\
+    \omega \\
+    -\dfrac{lf}{2J}\sin(\phi)
+    \end{bmatrix}.
+    $$
+
+    Ainsi :
+
+    $$
+    \boxed{
+    F(s,f,\phi)
+    =
+    \begin{bmatrix}
+    v_x \\
+    -\dfrac{f}{M}\sin(\theta+\phi) \\
+    v_y \\
+    \dfrac{f}{M}\cos(\theta+\phi)-g \\
+    \omega \\
+    -\dfrac{lf}{2J}\sin(\phi)
+    \end{bmatrix}
+    }
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(center_of_mass_acceleration, np, tilt_acceleration):
+    def F(s, f, phi):
+        x, vx, y, vy, theta, omega = s
+
+        x_dot = vx
+        y_dot = vy
+        theta_dot = omega
+
+        vx_dot, vy_dot = center_of_mass_acceleration(f, theta, phi)
+        omega_dot = tilt_acceleration(f, phi)
+
+        return np.array([
+            x_dot,
+            vx_dot,
+            y_dot,
+            vy_dot,
+            theta_dot,
+            omega_dot,
+        ])
+
+    return (F,)
 
 
 @app.cell(hide_code=True)
@@ -231,6 +802,27 @@ def _(mo):
     return
 
 
+@app.cell
+def _(F, sci):
+    def redstart_solve(t_span, y0, f_phi):
+        def rhs(t, y):
+            f, phi = f_phi(t, y)
+            return F(y, f, phi)
+
+        sol_ivp = sci.solve_ivp(
+            rhs,
+            t_span,
+            y0,
+            dense_output=True,
+            rtol=1e-9,
+            atol=1e-9,
+        )
+
+        return sol_ivp.sol
+
+    return (redstart_solve,)
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -242,6 +834,47 @@ def _(mo):
 
     Check your `redstart_solve` function in this scenario and produce a graph that allows us to check the above answer numerically/visually.
     """)
+    return
+
+
+@app.cell
+def _(g, l, np, plt, redstart_solve):
+    def free_fall_test():
+        t_span = [0.0, 5.0]
+
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            0.0,   # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([0.0, 0.0])
+
+        sol = redstart_solve(t_span, y0, f_phi)
+
+        t = np.linspace(t_span[0], t_span[1], 1000)
+        s_t = sol(t)
+
+        y_t = s_t[2]
+        t_cross = np.sqrt(2 * (10.0 - l / 2.0) / g)
+
+        plt.figure()
+        plt.plot(t, y_t, label=r"$y(t)$")
+        plt.axhline(l / 2.0, color="grey", ls="--", label=r"$y=l/2$")
+        plt.axvline(t_cross, color="red", ls="--", label=fr"$t \approx {t_cross:.3f}$")
+        plt.xlabel("time $t$")
+        plt.ylabel("height $y(t)$")
+        plt.title("Free Fall")
+        plt.grid(True)
+        plt.legend()
+
+        return plt.gcf()
+
+    free_fall_test()
     return
 
 
