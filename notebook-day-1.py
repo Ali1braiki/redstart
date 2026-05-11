@@ -1389,53 +1389,6 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## 🧩 Booster Animation
-
-    Create a `booster_anim` function whose arguments are:
-
-    - `x`, `y`, `theta` (in radians), `f` and `phi` (in radians)
-    **which are functions of a time `t`**.
-    - an animation duration `T`,
-
-    and returns
-
-    - a SVG fragment that represents the animated body of the booster and the flame of its reactor during `T` seconds, then repeats.
-    (The booster drawing can be very simple, for example a rectangle for the body and another one of a different color for the flame will be fine.)
-
-    **Constraint:** make sure that
-
-    - the orientation of the flame is correct,
-    - its length is proportional to the force $f$,
-    - the flame length is equal to $\ell/2$ when $f=Mg$.
-
-    Test your function in the following scenario:
-
-    ```python
-    def booster_anim_0():
-        T = 5.0
-        def x(t):
-            return -l/2 + l * (t / T)
-        def y(t):
-            return l/2 + l/2 * (t / T)
-        def theta(t):
-            return (t / T) * 2 * np.pi
-        def f(t):
-            return M * g * (t / T)
-        def phi(t):
-            return 2 * np.pi * (t / T)
-        return booster_anim(x, y, theta, f, phi, T=T)
-
-    mo.Html(
-        world([-3, 3, -2, 4], booster_anim_0())
-    ).center()
-    ```
-    """)
-    return
-
-
 @app.cell
 def _(M, g, l, np):
     def booster(x, y, theta, f, phi):
@@ -1575,6 +1528,53 @@ def _(M, booster, g, l, mo, np, world):
         ],
         justify="space-around",
     )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## 🧩 Booster Animation
+
+    Create a `booster_anim` function whose arguments are:
+
+    - `x`, `y`, `theta` (in radians), `f` and `phi` (in radians)
+    **which are functions of a time `t`**.
+    - an animation duration `T`,
+
+    and returns
+
+    - a SVG fragment that represents the animated body of the booster and the flame of its reactor during `T` seconds, then repeats.
+    (The booster drawing can be very simple, for example a rectangle for the body and another one of a different color for the flame will be fine.)
+
+    **Constraint:** make sure that
+
+    - the orientation of the flame is correct,
+    - its length is proportional to the force $f$,
+    - the flame length is equal to $\ell/2$ when $f=Mg$.
+
+    Test your function in the following scenario:
+
+    ```python
+    def booster_anim_0():
+        T = 5.0
+        def x(t):
+            return -l/2 + l * (t / T)
+        def y(t):
+            return l/2 + l/2 * (t / T)
+        def theta(t):
+            return (t / T) * 2 * np.pi
+        def f(t):
+            return M * g * (t / T)
+        def phi(t):
+            return 2 * np.pi * (t / T)
+        return booster_anim(x, y, theta, f, phi, T=T)
+
+    mo.Html(
+        world([-3, 3, -2, 4], booster_anim_0())
+    ).center()
+    ```
+    """)
     return
 
 
