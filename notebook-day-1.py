@@ -498,7 +498,7 @@ def _(M, force_components, g):
         fx, fy = force_components(f, theta, phi)
 
         x_ddot = fx / M
-        y_ddot = fy / M - g
+        y_ddot = (fy / M) - g
 
         return x_ddot, y_ddot
 
@@ -805,17 +805,16 @@ def _(mo):
 @app.cell
 def _(F, sci):
     def redstart_solve(t_span, y0, f_phi):
-        def rhs(t, y):
+        def fphi(t, y):
             f, phi = f_phi(t, y)
             return F(y, f, phi)
 
         sol_ivp = sci.solve_ivp(
-            rhs,
+            fphi,
             t_span,
             y0,
             dense_output=True,
-            rtol=1e-9,
-            atol=1e-9,
+            max_step=0.05
         )
 
         return sol_ivp.sol
@@ -895,6 +894,212 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    On veut faire atterrir le booster verticalement.
+
+    Les conditions initiales sont :
+
+    $$
+    x(0)=0,
+    \qquad
+    \dot{x}(0)=0,
+    $$
+
+    $$
+    y(0)=10,
+    \qquad
+    \dot{y}(0)=-2,
+    $$
+
+    $$
+    \theta(0)=0,
+    \qquad
+    \dot{\theta}(0)=0.
+    $$
+
+    L’objectif est d’obtenir, à l’instant $t=5$ :
+
+    $$
+    y(5)=\frac{l}{2}
+    $$
+
+    et :
+
+    $$
+    \dot{y}(5)=0.
+    $$
+
+    Comme $l=2$, cela donne :
+
+    $$
+    y(5)=1.
+    $$
+
+    On choisit une stratégie d’atterrissage vertical, donc la poussée reste alignée avec l’axe du booster :
+
+    $$
+    \phi(t)=0.
+    $$
+
+    Comme le booster est initialement vertical, on garde :
+
+    $$
+    \theta(t)=0.
+    $$
+
+    La dynamique verticale devient alors :
+
+    $$
+    \ddot{y}(t)=\frac{f(t)}{M}-g.
+    $$
+
+    On choisit une accélération verticale désirée affine en temps :
+
+    $$
+    \ddot{y}(t)=a+bt.
+    $$
+
+    En intégrant une première fois :
+
+    $$
+    \dot{y}(t)=-2+at+\frac{b}{2}t^2.
+    $$
+
+    En intégrant une deuxième fois :
+
+    $$
+    y(t)=10-2t+\frac{a}{2}t^2+\frac{b}{6}t^3.
+    $$
+
+    On impose les conditions finales :
+
+    $$
+    \dot{y}(5)=0
+    $$
+
+    et :
+
+    $$
+    y(5)=1.
+    $$
+
+    Cela donne :
+
+    $$
+    -2+5a+\frac{25}{2}b=0
+    $$
+
+    et :
+
+    $$
+    \frac{25}{2}a+\frac{125}{6}b=1.
+    $$
+
+    En résolvant ce système, on obtient :
+
+    $$
+    a=-\frac{14}{25},
+    \qquad
+    b=\frac{48}{125}.
+    $$
+
+    Donc :
+
+    $$
+    \ddot{y}(t)
+    =
+    -\frac{14}{25}
+    +
+    \frac{48}{125}t.
+    $$
+
+    Or :
+
+    $$
+    \ddot{y}(t)=\frac{f(t)}{M}-g.
+    $$
+
+    Ainsi :
+
+    $$
+    f(t)=M\left(\ddot{y}(t)+g\right).
+    $$
+
+    Donc la loi de poussée est :
+
+    $$
+    \boxed{
+    f(t)=M\left(g-\frac{14}{25}+\frac{48}{125}t\right)
+    }
+    $$
+
+    avec :
+
+    $$
+    \boxed{
+    \phi(t)=0.
+    }
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(M, g):
+    def controlled_landing_force(t):
+        return M * (g - 14.0 / 25.0 + (48.0 / 125.0) * t)
+
+    return (controlled_landing_force,)
+
+
+@app.cell
+def _(controlled_landing_force, l, np, plt, redstart_solve):
+    def controlled_landing():
+        t_span = [0.0, 5.0]
+
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            -2.0,  # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([controlled_landing_force(t), 0.0])
+
+        sol = redstart_solve(t_span, y0, f_phi)
+
+        t = np.linspace(t_span[0], t_span[1], 1000)
+        s_t = sol(t)
+
+        y_t = s_t[2]
+        vy_t = s_t[3]
+        f_t = np.array([controlled_landing_force(ti) for ti in t])
+
+        plt.figure()
+        plt.plot(t, y_t, label=r"$y(t)$")
+        plt.plot(t, vy_t, label=r"$\dot{y}(t)$")
+        plt.plot(t, f_t, label=r"$f(t)$")
+        plt.axhline(l / 2.0, color="grey", ls="--", label=r"$y=l/2$")
+        plt.axhline(0.0, color="black", ls="--", label=r"$\dot{y}=0$")
+        plt.xlabel("time $t$")
+        plt.title("Controlled Landing")
+        plt.grid(True)
+        plt.legend()
+
+        print("y(5) =", sol(5.0)[2])
+        print("vy(5) =", sol(5.0)[3])
+
+        return plt.gcf()
+
+    controlled_landing()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     # Animations
 
     It's very handy to visualize the evolution of our booster "as a movie"!
@@ -910,7 +1115,7 @@ def _(mo):
 def _():
     from svg import svg, transform, animate_transform
 
-    return
+    return (svg,)
 
 
 @app.cell(hide_code=True)
@@ -964,6 +1169,171 @@ def _(mo):
     )
     ```
     """)
+    return
+
+
+@app.cell
+def _(np):
+    def world(view_box, *objects, title=None):
+        x_min, x_max, y_min, y_max = view_box
+        width = x_max - x_min
+        height = y_max - y_min
+
+        def svg_y(y):
+            return -y
+
+        # Background
+        sky = f'''
+        <rect x="{x_min}" y="0" width="{width}" height="{y_max}" fill="#7ec8e3" />
+        '''
+
+        ground = f'''
+        <rect x="{x_min}" y="{y_min}" width="{width}" height="{-y_min}" fill="#9b662b" />
+        '''
+
+        # Grid
+        grid = []
+        for x_tick in range(int(np.floor(x_min)), int(np.ceil(x_max)) + 1):
+            grid.append(
+                f'<line x1="{x_tick}" y1="{y_min}" x2="{x_tick}" y2="{y_max}" '
+                f'stroke="#888" stroke-width="0.015" opacity="0.35" />'
+            )
+
+        for y_tick in range(int(np.floor(y_min)), int(np.ceil(y_max)) + 1):
+            grid.append(
+                f'<line x1="{x_min}" y1="{y_tick}" x2="{x_max}" y2="{y_tick}" '
+                f'stroke="#888" stroke-width="0.015" opacity="0.35" />'
+            )
+
+        # Axes
+        axes = [
+            f'<line x1="{x_min}" y1="0" x2="{x_max}" y2="0" '
+            f'stroke="black" stroke-width="0.025" opacity="0.75" />',
+
+            f'<line x1="0" y1="{y_min}" x2="0" y2="{y_max}" '
+            f'stroke="black" stroke-width="0.025" opacity="0.75" />',
+        ]
+
+        # Landing target
+        target = '''
+        <rect x="-1" y="0" width="2" height="0.10" fill="#0b8f20" />
+        <rect x="-1" y="0.10" width="2" height="0.03" fill="#096d19" />
+        '''
+
+        # Objects are drawn in mathematical coordinates
+        scene_content = "\n".join([
+            sky,
+            ground,
+            *grid,
+            *axes,
+            target,
+            *[str(obj) for obj in objects],
+        ])
+
+        # Text labels must NOT be inside the flipped group
+        labels = []
+
+        # x-axis tick labels
+        for x_tick in range(int(np.floor(x_min)), int(np.ceil(x_max)) + 1):
+            labels.append(
+                f'''
+                <text x="{x_tick}" y="{svg_y(-0.25)}"
+                      font-size="0.18" text-anchor="middle" fill="black">
+                    {x_tick}
+                </text>
+                '''
+            )
+
+        # y-axis tick labels
+        for y_tick in range(int(np.floor(y_min)), int(np.ceil(y_max)) + 1):
+            labels.append(
+                f'''
+                <text x="-0.18" y="{svg_y(y_tick) + 0.06}"
+                      font-size="0.18" text-anchor="end" fill="black">
+                    {y_tick}
+                </text>
+                '''
+            )
+
+        # Axis names
+        labels.append(
+            f'''
+            <text x="{x_max - 0.25}" y="{svg_y(-0.45)}"
+                  font-size="0.22" text-anchor="middle" fill="black">
+                x
+            </text>
+            '''
+        )
+
+        labels.append(
+            f'''
+            <text x="0.25" y="{svg_y(y_max - 0.25)}"
+                  font-size="0.22" text-anchor="middle" fill="black">
+                y
+            </text>
+            '''
+        )
+
+        # Optional title
+        if title is not None:
+            labels.append(
+                f'''
+                <text x="{(x_min + x_max) / 2}" y="{svg_y(y_max) + 0.28}"
+                      font-size="0.24" text-anchor="middle" fill="black">
+                    {title}
+                </text>
+                '''
+            )
+
+        labels_content = "\n".join(labels)
+
+        return f"""
+        <svg
+            viewBox="{x_min} {-y_max} {width} {height}"
+            width="450"
+            height="450"
+            xmlns="http://www.w3.org/2000/svg"
+            style="background:white;"
+        >
+            <g transform="scale(1,-1)">
+                {scene_content}
+            </g>
+
+            {labels_content}
+        </svg>
+        """
+
+    return (world,)
+
+
+@app.cell
+def _(mo, svg, world):
+    mo.hstack(
+        [
+            # Display an empty world
+            mo.Html(
+                world([-3, 3, -2, 4])
+            ),
+            # Display a world with a black square on top of the landing pad
+            mo.Html(
+                world(
+                    [-3, 3, -2, 4],
+                    svg.rect(x=-1, y=0, width=2, height=2, fill="black"),
+                )
+            ),
+            # Display a world with a red square in the top-left corner of the view box
+            # and a blue square on the top-right corner of the view box.
+            mo.Html(
+                world(
+                    [-3, 3, -2, 4],
+                    svg.rect(x=-3, y=2, width=2, height=2, fill="red"),
+                    svg.rect(x=1, y=2, width=2, height=2, fill="blue"),
+                )
+            )
+        ],
+        justify="space-around"
+    )
+
     return
 
 
@@ -1066,6 +1436,303 @@ def _(mo):
     return
 
 
+@app.cell
+def _(M, g, l, np):
+    def booster(x, y, theta, f, phi):
+        body_width = 0.20
+        body_length = l
+        nose_height = 0.14
+        nozzle_width = 0.10
+        nozzle_height = 0.08
+
+        # Longueur de flamme : l/2 quand f = M*g
+        flame_length = 0.0 if M * g == 0 else (l / 2.0) * f / (M * g)
+        flame_width = 0.22
+
+        # Corps local : centre au milieu du booster
+        y_bottom = -l / 2.0
+        y_top = l / 2.0
+
+        # Base / nozzle
+        x_base = 0.0
+        y_base = y_bottom - nozzle_height
+
+        # Direction de la flamme (opposée à la poussée)
+        dx = np.sin(phi)
+        dy = -np.cos(phi)
+
+        # Direction perpendiculaire
+        nx = -dy
+        ny = dx
+
+        # Triangle de flamme
+        x1 = x_base + (flame_width / 2.0) * nx
+        y1 = y_base + (flame_width / 2.0) * ny
+
+        x2 = x_base - (flame_width / 2.0) * nx
+        y2 = y_base - (flame_width / 2.0) * ny
+
+        x3 = x_base + flame_length * dx
+        y3 = y_base + flame_length * dy
+
+        theta_deg = theta * 180.0 / np.pi
+
+        return f"""
+        <g transform="translate({x},{y}) rotate({theta_deg})">
+            <!-- Corps -->
+            <rect
+                x="{-body_width/2}"
+                y="{y_bottom}"
+                width="{body_width}"
+                height="{body_length}"
+                fill="#c9c9c9"
+                stroke="#222"
+                stroke-width="0.03"
+                rx="0.03"
+            />
+
+            <!-- Tête -->
+            <polygon
+                points="
+                    {-body_width/2},{y_top}
+                    {body_width/2},{y_top}
+                    0,{y_top + nose_height}
+                "
+                fill="#bdbdbd"
+                stroke="#222"
+                stroke-width="0.03"
+            />
+
+            <!-- Nozzle -->
+            <polygon
+                points="
+                    {-nozzle_width/2},{y_bottom}
+                    {nozzle_width/2},{y_bottom}
+                    {nozzle_width/4},{y_bottom - nozzle_height}
+                    {-nozzle_width/4},{y_bottom - nozzle_height}
+                "
+                fill="#666"
+                stroke="#222"
+                stroke-width="0.02"
+            />
+
+            <!-- Flamme -->
+            <polygon
+                points="{x1},{y1} {x2},{y2} {x3},{y3}"
+                fill="#ff9800"
+                stroke="#d62828"
+                stroke-width="0.02"
+                opacity="0.95"
+            />
+        </g>
+        """
+
+    return (booster,)
+
+
+@app.cell
+def _(M, booster, g, l, mo, np, world):
+    mo.hstack(
+        [
+            mo.vstack(
+                [
+                    mo.Html(
+                        world(
+                            [-3, 3, -2, 4],
+                            booster(0, l/2, 0, 0, 0),
+                            title="",  # supprimé du haut
+                        )
+                    ),
+                    mo.Html("<div style='text-align:center'>x=0.00, y=1.00, θ=0.00, f=0.00, φ=0.00</div>")
+                ]
+            ),
+
+            mo.vstack(
+                [
+                    mo.Html(
+                        world(
+                            [-3, 3, -2, 4],
+                            booster(0, l, 0, M * g, 0),
+                            title="",
+                        )
+                    ),
+                    mo.Html("<div style='text-align:center'>x=0.00, y=2.00, θ=0.00, f=1.00, φ=0.00</div>")
+                ]
+            ),
+
+            mo.vstack(
+                [
+                    mo.Html(
+                        world(
+                            [-3, 3, -2, 4],
+                            booster(-l/2, l, np.pi / 4, 2 * M * g, np.pi / 2),
+                            title="",
+                        )
+                    ),
+                    mo.Html("<div style='text-align:center'>x=-1.00, y=2.00, θ=0.79, f=2.00, φ=1.57</div>")
+                ]
+            ),
+        ],
+        justify="space-around",
+    )
+    return
+
+
+@app.cell
+def _(M, g, l, np):
+    def booster_anim(x, y, theta, f, phi, T=5.0, N=80):
+        ts = np.linspace(0.0, T, N)
+
+        body_width = 0.20
+        body_length = l
+        nozzle_width = 0.10
+        nozzle_height = 0.08
+
+        y_bottom = -l / 2.0
+        y_top = l / 2.0
+
+        flame_width = 0.22
+
+        def flame_points(fi, phii):
+            if M * g == 0:
+                flame_length = 0.0
+            else:
+                flame_length = (l / 2.0) * fi / (M * g)
+
+            x_base = 0.0
+            y_base = y_bottom - nozzle_height
+
+            dx = np.sin(phii)
+            dy = -np.cos(phii)
+
+            nx = -dy
+            ny = dx
+
+            x1 = x_base + (flame_width / 2.0) * nx
+            y1 = y_base + (flame_width / 2.0) * ny
+
+            x2 = x_base - (flame_width / 2.0) * nx
+            y2 = y_base - (flame_width / 2.0) * ny
+
+            x3 = x_base + flame_length * dx
+            y3 = y_base + flame_length * dy
+
+            return f"{x1},{y1} {x2},{y2} {x3},{y3}"
+
+        translate_values = ";".join(
+            f"{x(t)},{y(t)}"
+            for t in ts
+        )
+
+        rotate_values = ";".join(
+            f"{theta(t) * 180.0 / np.pi}"
+            for t in ts
+        )
+
+        flame_values = ";".join(
+            flame_points(f(t), phi(t))
+            for t in ts
+        )
+
+        first_x = x(0.0)
+        first_y = y(0.0)
+        first_theta = theta(0.0) * 180.0 / np.pi
+        first_flame = flame_points(f(0.0), phi(0.0))
+
+        return f"""
+        <g transform="translate({first_x},{first_y})">
+            <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="{translate_values}"
+                dur="{T}s"
+                repeatCount="indefinite"
+            />
+
+            <g transform="rotate({first_theta})">
+                <animateTransform
+                    attributeName="transform"
+                    type="rotate"
+                    values="{rotate_values}"
+                    dur="{T}s"
+                    repeatCount="indefinite"
+                />
+
+                <!-- Corps du booster -->
+                <rect
+                    x="{-body_width/2}"
+                    y="{y_bottom}"
+                    width="{body_width}"
+                    height="{body_length}"
+                    fill="#c9c9c9"
+                    stroke="#222"
+                    stroke-width="0.03"
+                    rx="0.03"
+                />
+
+                <!-- Nozzle -->
+                <polygon
+                    points="
+                        {-nozzle_width/2},{y_bottom}
+                        {nozzle_width/2},{y_bottom}
+                        {nozzle_width/4},{y_bottom - nozzle_height}
+                        {-nozzle_width/4},{y_bottom - nozzle_height}
+                    "
+                    fill="#666"
+                    stroke="#222"
+                    stroke-width="0.02"
+                />
+
+                <!-- Flamme animée -->
+                <polygon
+                    points="{first_flame}"
+                    fill="#ff9800"
+                    stroke="#d62828"
+                    stroke-width="0.02"
+                    opacity="0.95"
+                >
+                    <animate
+                        attributeName="points"
+                        values="{flame_values}"
+                        dur="{T}s"
+                        repeatCount="indefinite"
+                    />
+                </polygon>
+            </g>
+        </g>
+        """
+
+    return (booster_anim,)
+
+
+@app.cell
+def _(M, booster_anim, g, l, mo, np, world):
+    def booster_anim_0():
+        T = 5.0
+
+        def x(t):
+            return -l/2 + l * (t / T)
+
+        def y(t):
+            return l/2 + l/2 * (t / T)
+
+        def theta(t):
+            return (t / T) * 2 * np.pi
+
+        def f(t):
+            return M * g * (t / T)
+
+        def phi(t):
+            return 2 * np.pi * (t / T)
+
+        return booster_anim(x, y, theta, f, phi, T=T)
+
+    mo.Html(
+        world([-3, 3, -2, 4], booster_anim_0())
+    ).center()
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -1081,6 +1748,142 @@ def _(mo):
 
     4. The "controlled landing" scenario (see above).
     """)
+    return
+
+
+@app.cell
+def _(booster_anim, mo, redstart_solve, world):
+    def animated_scenario(y0, f_phi, view_box=[-5, 5, -2, 12], T=5.0):
+        t_span = [0.0, T]
+
+        sol = redstart_solve(t_span, y0, f_phi)
+
+        def x(t):
+            return sol(t)[0]
+
+        def y(t):
+            return sol(t)[2]
+
+        def theta(t):
+            return sol(t)[4]
+
+        def f(t):
+            return f_phi(t, sol(t))[0]
+
+        def phi(t):
+            return f_phi(t, sol(t))[1]
+
+        return mo.Html(
+            world(
+                view_box,
+                booster_anim(x, y, theta, f, phi, T=T),
+            )
+        )
+
+    return (animated_scenario,)
+
+
+@app.cell
+def _(animated_scenario, np):
+    def animation_scenario_1():
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            0.0,   # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([0.0, 0.0])
+
+        return animated_scenario(
+            y0,
+            f_phi,
+            view_box=[-5, 5, -2, 12],
+            T=5.0,
+        )
+
+    animation_scenario_1()
+    return
+
+
+@app.cell
+def _(M, animated_scenario, g, np):
+    def animation_scenario_2():
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            0.0,   # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([M * g, 0.0])
+
+        return animated_scenario(
+            y0,
+            f_phi,
+            view_box=[-5, 5, -2, 12],
+            T=5.0,
+        )
+
+    animation_scenario_2()
+    return
+
+
+@app.cell
+def _(M, animated_scenario, g, np):
+    def animation_scenario_3():
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            0.0,   # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([M * g, np.pi / 8])
+
+        return animated_scenario(
+            y0,
+            f_phi,
+            view_box=[-5, 5, -2, 12],
+            T=5.0,
+        )
+
+    animation_scenario_3()
+    return
+
+
+@app.cell
+def _(animated_scenario, controlled_landing_force, np):
+    def animation_scenario_4():
+        y0 = np.array([
+            0.0,   # x
+            0.0,   # vx
+            10.0,  # y
+            -2.0,  # vy
+            0.0,   # theta
+            0.0,   # omega
+        ])
+
+        def f_phi(t, y):
+            return np.array([controlled_landing_force(t), 0.0])
+
+        return animated_scenario(
+            y0,
+            f_phi,
+            view_box=[-5, 5, -2, 12],
+            T=5.0,
+        )
+
+    animation_scenario_4()
     return
 
 
