@@ -2570,24 +2570,129 @@ def _(K_oc, validation_nonlinear_controller):
     return
 
 
+@app.cell
+def _(A_red, B_red, K_oc, K_pp, la, np, scipy):
+    def compare_methods(A_red, B_red, K_pp, K_oc):
+
+        methods = {
+            "Placement de pôles": K_pp,
+            "Commande optimale LQR": K_oc,
+        }
+
+        s0 = np.array([0.0, 0.0, np.pi / 4, 0.0])
+        T = 20.0
+        t_span = [0.0, T]
+        t = np.linspace(0.0, T, 2000)
+
+        rows = []
+
+        for name, K in methods.items():
+            A_cl = A_red - B_red @ K
+
+            def dyn(t_local, s):
+                return A_cl @ s
+
+            sol = scipy.integrate.solve_ivp(
+                dyn,
+                t_span,
+                s0,
+                dense_output=True,
+                max_step=0.01,
+            )
+
+            s = sol.sol(t)
+            phi = -(K @ s).flatten()
+
+            eigvals = la.eigvals(A_cl)
+
+            max_theta = np.max(np.abs(s[2]))
+            max_phi = np.max(np.abs(phi))
+
+            final_x = abs(s[0, -1])
+            final_theta = abs(s[2, -1])
+
+            stable = np.all(np.real(eigvals) < 0)
+
+            rows.append({
+                "Méthode": name,
+                "Max |theta|": max_theta,
+                "Max |phi|": max_phi,
+                "|x(20)|": final_x,
+                "|theta(20)|": final_theta,
+                "Stable ?": stable,
+            })
+
+        return rows
+
+
+    comparison = compare_methods(A_red, B_red, K_pp, K_oc)
+
+    return (comparison,)
+
+
+@app.cell
+def _(comparison):
+    import pandas as pd
+
+    df_comparison = pd.DataFrame(comparison)
+    df_comparison_rounded = df_comparison.copy()
+
+    for col in ["Max |theta|", "Max |phi|", "|x(20)|", "|theta(20)|"]:
+        df_comparison_rounded[col] = df_comparison_rounded[col].round(6)
+
+    df_comparison_rounded
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ### Conclusions :
+    ### Conclusions
 
-    Les simulations et animations montrent que les deux contrôleurs ramènent le booster vers une position verticale.
+    Les deux contrôleurs atteignent l’objectif demandé : ils stabilisent le booster et ramènent l’angle vers la position verticale.
 
-    Le contrôleur par placement de pôles stabilise rapidement le système.
+    D’après les résultats numériques, on remarque que :
 
-    Le contrôleur optimal LQR donne une commande plus douce.
+    - dans les deux cas, le maximum de $|\theta|$ vaut environ $0.785$, c’est-à-dire $\pi/4$, ce qui correspond simplement à l’angle initial ;
+    - les deux contrôleurs gardent bien $|\theta| < \pi/2$ ;
+    - les deux contrôleurs gardent aussi $|\phi| < \pi/2$ ;
+    - les deux systèmes fermés sont asymptotiquement stables.
 
-    Dans les deux cas, on vérifie que la commande reste bornée avec :
+    Le placement de pôles donne une convergence légèrement meilleure en position finale :
 
     $$
-    |\phi| < \frac{\pi}{2}.
+    |x(20)| = 0.006201
     $$
 
-    Donc les deux stratégies atteignent l’objectif sur le modèle non linéaire.
+    contre :
+
+    $$
+    |x(20)| = 0.008205
+    $$
+
+    pour le LQR.
+
+    Cependant, le contrôleur LQR utilise une commande plus douce, car son maximum de commande est plus faible :
+
+    $$
+    \max |\phi| = 0.483678
+    $$
+
+    contre :
+
+    $$
+    \max |\phi| = 0.705351
+    $$
+
+    pour le placement de pôles.
+
+    Donc, les deux méthodes fonctionnent, mais elles ont des comportements différents :
+
+    - le placement de pôles est légèrement plus précis à la fin ;
+    - le LQR est plus régulier et moins agressif en commande.
+
+    Ainsi, si l’objectif principal est la précision finale, le placement de pôles est légèrement meilleur.
+    Si l’objectif est de limiter l’effort de commande, le LQR est préférable.
     """)
     return
 
