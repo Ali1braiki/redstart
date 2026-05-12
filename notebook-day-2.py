@@ -71,7 +71,7 @@ def _():
     import numpy as np
     import numpy.linalg as la
 
-    return np, plt, scipy
+    return la, np, plt, scipy
 
 
 @app.cell(hide_code=True)
@@ -1244,7 +1244,7 @@ def _(J, M, g, l, np):
     print(A)
     print("\nMatrice B :")
     print(B)
-    return
+    return A, B
 
 
 @app.cell(hide_code=True)
@@ -1257,8 +1257,33 @@ def _(mo):
     return
 
 
-@app.cell
-def _():
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Pour qu'un équilibre soit **asymptotiquement stable**, toutes les valeurs propres ($\lambda$) de la matrice $A$ doivent avoir une partie réelle strictement négative ($\text{Re}(\lambda) < 0$).
+
+    ### 1. Analyse des valeurs propres
+    En utilisant la matrice $A$ définie pour le vecteur $s = [\Delta x, \Delta \dot{x}, \Delta y, \Delta \dot{y}, \Delta \theta, \Delta \dot{\theta}]^T$ :
+
+    $$A = \begin{bmatrix}
+    0 & 1 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0 & 0 & 0
+    \end{bmatrix}$$
+
+    $A$ est une matrice triangulaire dont les éléments diagonaux sont tous nuls.
+    Donc Le système possède six valeurs propres toutes égales à zéro ($\lambda_{1..6} = 0$).
+
+    ### 2. Conclusion
+    L'équilibre générique n'est **pas asymptotiquement stable** car les valeurs propres n'ont pas de partie réelle strictement négative.
+
+    **Interprétation :**
+    * Le booster est naturellement instable.
+    * Sans l'ajout d'une loi de commande (feedback), toute perturbation sur l'angle ou la vitesse entraînera une dérive ou une chute du système.
+    """)
     return
 
 
@@ -1268,6 +1293,48 @@ def _(mo):
     ## 🧩 Controllability
 
     Is the linearized model controllable?
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### 1. Condition de commandabilité
+    Un système linéaire invariant dans le temps, défini par l'équation d'état $\dot{s} = As + Bu$, est dit **entièrement commandable** si et seulement si la matrice de commandabilité $\mathcal{C}$ est de **rang plein**. Pour notre système de dimension $n=6$, la matrice $\mathcal{C}$ est définie par :
+    $$\mathcal{C} = [B \quad AB \quad A^2B \quad A^3B \quad A^4B \quad A^5B]$$
+    Si $\text{rang}(\mathcal{C}) = 6$, il est possible de transférer le système de n'importe quel état initial vers n'importe quel état final (comme l'équilibre de l'atterrissage) en un temps fini.
+
+    ### 2. Vérification du rang de $\mathcal{C}$
+    Le code suivant permet de calculer la matrice de commandabilité et d'en vérifier le rang mathématiquement :
+    """)
+    return
+
+
+@app.cell
+def _(A, B, la, np):
+    # Calcul de la matrice de commandabilité C
+    n = A.shape[0]
+    C = B
+    for i in range(1, n):
+        C = np.hstack((C, np.linalg.matrix_power(A, i) @ B))
+
+    # Vérification du rang
+    rang_C = la.matrix_rank(C)
+    print(f"Rang de la matrice C : {rang_C}")
+    return (rang_C,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### 3. Analyse du système
+
+    Le modèle linéarisé est entièrement commandable car le rang de la matrice $\mathcal{C}$ est égal à 6. Cette analyse permet de tirer les conclusions suivantes :
+
+    * **Découplage de la poussée** : L'entrée $\Delta f$ commande directement l'altitude $\Delta y$ (translation verticale), permettant de gérer la descente indépendamment des mouvements latéraux.
+    * **Couplage dynamique** : L'entrée $\Delta \phi$ ne commande pas uniquement l'angle $\theta$ ; grâce au couplage présent dans la matrice $A$, elle permet également de contrôler la position latérale $x$.
+    * **Faisabilité du contrôle** : La commandabilité totale garantit qu'il est mathématiquement possible de concevoir une loi de commande capable de stabiliser le booster pour un atterrissage vertical réussi.
     """)
     return
 
@@ -1289,6 +1356,91 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    # Système de dynamique latérale réduit
+
+    En limitant l'étude à la position latérale $x$ et à l'inclinaison $\theta$, nous simplifions le système pour nous concentrer sur le contrôle de la trajectoire horizontale. Le vecteur d'état réduit est $s_{red} = [\Delta x, \Delta \dot{x}, \Delta \theta, \Delta \dot{\theta}]^T$ et l'unique entrée de commande est $u = [\Delta \phi]$ (en fixant $f = Mg$).
+
+    ### Définition des équations et des matrices réduites $A_{red}$ et $B_{red}$
+
+    Les équations différentielles ordinaires qui gouvernent ce système réduit sont :
+
+    $$\Delta \dot{x} = \Delta \dot{x}$$
+    $$\Delta \ddot{x} = -g \Delta \theta - g \Delta \phi$$
+    $$\Delta \dot{\theta} = \Delta \dot{\theta}$$
+    $$\Delta \ddot{\theta} = -\frac{lMg}{2J} \Delta \phi$$
+
+    Sous forme d'état standard $\dot{s}_{red} = A_{red}s_{red} + B_{red}u$, les matrices sont définies comme suit :
+
+    #### Matrice d'état réduite $A_{red}$ ($4 \times 4$)
+    $$A_{red} = \begin{bmatrix}
+    0 & 1 & 0 & 0 \\
+    0 & 0 & -g & 0 \\
+    0 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 0
+    \end{bmatrix}$$
+
+    #### Matrice de commande réduite $B_{red}$ ($4 \times 1$)
+    $$B_{red} = \begin{bmatrix}
+    0 \\
+    -g \\
+    0 \\
+    -\frac{lMg}{2J}
+    \end{bmatrix}$$
+    """)
+    return
+
+
+@app.cell
+def _(J, M, g, l, la, np, rang_C):
+    # Définition des matrices avec la nouvelle notation 'red'
+    A_red = np.array([
+        [0, 1,  0, 0],
+        [0, 0, -g, 0],
+        [0, 0,  0, 1],
+        [0, 0,  0, 0]
+    ])
+
+    B_red = np.array([
+        [0],
+        [-g],
+        [0],
+        [-(l * M * g) / (2 * J)]
+    ])
+
+    # Calcul de la matrice de commandabilité C = [B_red, A_red*B_red, ...]
+    N = A_red.shape[0]
+    C_red = B_red
+    for j in range(1, N):
+        term = np.linalg.matrix_power(A_red, j) @ B_red
+        C_red = np.hstack((C_red, term))
+
+    # Vérification du rang de la matrice de commandabilité
+    rang_C_red = la.matrix_rank(C_red)
+
+    print("Matrice A_red :\n", A_red)
+    print("\nMatrice B_red :\n", B_red)
+    print(f"\nRang de la matrice de commandabilité : {rang_C}")
+    print(f"Le système réduit est-il commandable ? {rang_C_red == N}")
+    return (A_red,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ###  Analyse du système
+
+    Le modèle linéarisé réduit est **entièrement commandable** car le rang de la matrice de commandabilité est égal à 4. Cette analyse permet de tirer les conclusions suivantes :
+
+    * **Accessibilité des états** : Bien que le système ne dispose plus que d'une seule entrée ($\Delta \phi$), celle-ci est suffisante pour piloter l'ensemble des quatre variables d'état latérales du booster.
+    * **Couplage dynamique** : L'entrée $\Delta \phi$ commande directement l'accélération angulaire $\Delta \ddot{\theta}$, mais elle agit aussi sur la position latérale $x$ via l'angle $\theta$ et le terme de couplage $-g$ dans la matrice $A_{red}$.
+    * **Faisabilité du contrôle** : La commandabilité totale confirme qu'il est mathématiquement possible de concevoir une loi de commande pour stabiliser le booster horizontalement en utilisant uniquement l'orientation du moteur.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Linear Model in Free Fall
 
     Make graphs of $x(t)$ and $\theta(t)$ for the linearized model when
@@ -1296,6 +1448,68 @@ def _(mo):
     - $\phi(t)=0$ at all times.
 
     What do you see? How do you explain it?
+    """)
+    return
+
+
+@app.cell
+def _(A_red, np, plt):
+
+    from scipy.integrate import odeint
+
+
+    s0 = [0.0, 0.0, np.pi/4, 0.0] 
+    t = np.linspace(0, 5, 5000)
+
+    # 2. Fonction de dynamique (utilise A_red déjà définie)
+    def system_dynamics_simple(s, t_vector):
+        return A_red @ s
+
+    # 3. Simulation
+    sol = odeint(system_dynamics_simple, s0, t)
+    x_t = sol[:, 0]
+    theta_t = sol[:, 2]*180*(1/np.pi)
+
+    # 4. Tracé des graphiques
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Graphique x(t)
+    ax1.plot(t, x_t, color='blue', lw=2, label='$x(t)$')
+    ax1.set_title('Position latérale $x(t)$')
+    ax1.set_xlabel('Temps (s)')
+    ax1.set_ylabel('Distance (m)')
+    ax1.grid(True, linestyle='--')
+    ax1.legend()
+
+    # Graphique theta(t)
+    ax2.plot(t, theta_t, color='red', lw=2, label='$\\theta(t)$')
+    ax2.axhline(y=s0[2], color='black', linestyle=':', label='Initial $\\theta_0$')
+    ax2.set_title('Inclinaison $\\theta(t)$')
+    ax2.set_xlabel('Temps (s)')
+    ax2.set_ylabel('Angle (rad)')
+    ax2.grid(True, linestyle='--')
+    ax2.legend()
+
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### 2. Observation et explication
+
+    **Ce que l'on observe :**
+    * **L'angle $\theta(t)$ reste constant** : La ligne rouge est parfaitement horizontale à $\pi/4$. Comme l'entrée de contrôle $\phi$ est nulle, rien ne modifie la rotation.
+    * **La position $x(t)$ diverge** : On observe une courbe parabolique qui descend vers les valeurs négatives. Le booster dérive de plus en plus vite.
+
+    **Explication théorique :**
+    1.  **Équilibre instable** : Sans contrôle ($\phi = 0$), l'accélération angulaire est nulle. Le booster conserve son inclinaison initiale.
+    2.  **Force latérale constante** : Comme le booster est penché ($\theta = \pi/4$), la poussée du moteur n'est plus purement verticale. Elle génère une accélération latérale constante $\Delta \ddot{x} = -g \Delta \theta$.
+    3.  **Mouvement uniformément accéléré** : Une accélération constante crée une trajectoire parabolique pour la position $x(t)$, ce qui explique pourquoi le booster s'éloigne indéfiniment de sa cible.
+
+    **Conclusion :** Le système est **instable**. Sans une correction active via $\phi$, une simple erreur d'inclinaison initiale détruit la précision de l'atterrissage.
     """)
     return
 
