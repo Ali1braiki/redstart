@@ -1421,7 +1421,7 @@ def _(J, M, g, l, la, np):
     print("\nMatrice B_red :\n", B_red)
     print(f"\nRang de la matrice de commandabilité : {rang_C_red}")
     print(f"Le système réduit est-il commandable ? {rang_C_red == N}")
-    return (A_red,)
+    return A_red, B_red
 
 
 @app.cell(hide_code=True)
@@ -1556,7 +1556,244 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _():
+def _(mo):
+    mo.md(r"""
+    On cherche d’abord une commande simple qui stabilise seulement l’angle :
+
+    $$
+    K =
+    \begin{bmatrix}
+    0 & 0 & k_\theta & k_\omega
+    \end{bmatrix}
+    $$
+
+    avec :
+
+    $$
+    \Delta \phi = -K s_{red}.
+    $$
+
+    Ici, on ne contrôle pas directement $x$ ni $\dot{x}$
+
+    La dynamique angulaire linéarisée est :
+
+    $$
+    \Delta \ddot{\theta}
+    =
+    -\frac{\ell Mg}{2J}\Delta \phi.
+    $$
+
+    Comme :
+
+    $$
+    \Delta \phi =
+    -k_\theta \Delta \theta
+    -k_\omega \Delta \dot{\theta},
+    $$
+
+    on obtient :
+
+    $$
+    \Delta \ddot{\theta}
+    =
+    \frac{\ell Mg}{2J}
+    \left(
+    k_\theta \Delta \theta
+    +
+    k_\omega \Delta \dot{\theta}
+    \right).
+    $$
+
+    On veut une dynamique stable du second ordre :
+
+    $$
+    \Delta \ddot{\theta}
+    +
+    2\zeta\omega_n \Delta \dot{\theta}
+    +
+    \omega_n^2 \Delta \theta
+    =0.
+    $$
+
+    Donc on choisit :
+
+    $$
+    k_\theta =
+    -\frac{\omega_n^2}{\ell Mg/(2J)},
+    \qquad
+    k_\omega =
+    -\frac{2\zeta\omega_n}{\ell Mg/(2J)}.
+    $$
+
+
+    Ici, $\omega_n$ règle la vitesse de convergence et $\zeta$ règle l’amortissement.
+
+    On choisit un amortissement élevé :
+
+    $$
+    \zeta = 0.9
+    $$
+
+    afin d’éviter les oscillations et de garder $|\Delta \theta| < \pi/2$.
+
+    On veut que l’angle converge en moins de 20 secondes. Pour un système du second ordre, le temps de stabilisation est approximativement :
+
+    $$
+    T_s \approx \frac{4}{\zeta\omega_n}.
+    $$
+
+    Ensuite, on choisit $\omega_n$ pour avoir un temps de stabilisation inférieur à 20 secondes. Avec :
+
+    $$
+    \omega_n = 0.35,
+    $$
+
+    on obtient :
+
+    $$
+    T_s \approx \frac{4}{0.9 \times 0.35}
+    \approx 12.7 \text{ s}.
+    $$
+
+
+    Donc : $\zeta$ = 0.9 et $\omega_n$ = 0.35
+
+    Avec :
+
+    $$
+    \frac{\ell Mg}{2J}=3,
+    $$
+
+    les gains sont :
+
+    $$
+    k_\theta =
+    -\frac{\omega_n^2}{3},
+    \qquad
+    k_\omega =
+    -\frac{2\zeta\omega_n}{3}.
+    $$
+
+    Donc :
+
+    $$
+    k_\theta \approx -0.0408,
+    \qquad
+    k_\omega \approx -0.21.
+    $$
+
+    A.N :
+
+    $$
+    \frac{\ell Mg}{2J}=3.
+    $$
+
+    Donc :
+
+    $$
+    K =
+    \begin{bmatrix}
+    0 & 0 & -0.0408 & -0.21
+    \end{bmatrix}.
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(J, M, g, l, np):
+    omega_n = 0.35
+    zeta = 0.9
+
+    alpha = (l * M * g) / (2 * J)
+
+    k_theta = -(omega_n ** 2) / alpha
+    k_omega = -(2 * zeta * omega_n) / alpha
+
+    K_manual = np.array([[0.0, 0.0, k_theta, k_omega]])
+
+    print("alpha =", alpha)
+    print("K_manual =", K_manual)
+    return (K_manual,)
+
+
+@app.cell
+def _(A_red, B_red, np, scipy):
+    def simulate_linear_controller(K, T=20.0):
+        t_span = [0.0, T]
+        s0 = np.array([0.0, 0.0, np.pi / 4, 0.0])
+
+        A_cl = A_red - B_red @ K
+
+        def dyn(t, s):
+            return A_cl @ s
+
+        sol = scipy.integrate.solve_ivp(
+            dyn,
+            t_span,
+            s0,
+            dense_output=True,
+            max_step=0.01,
+        )
+
+        t = np.linspace(0.0, T, 2000)
+        s = sol.sol(t)
+        phi = -(K @ s).flatten()
+
+        return t, s, phi, A_cl
+
+    return (simulate_linear_controller,)
+
+
+@app.cell
+def _(K_manual, la, np, plt, simulate_linear_controller):
+    t_manual, s_manual, phi_manual, Acl_manual = simulate_linear_controller(K_manual)
+
+    plt.figure(figsize=(12, 4))
+
+    plt.subplot(1, 3, 1)
+    plt.plot(t_manual, s_manual[0])
+    plt.title(r"$\Delta x(t)$")
+    plt.grid(True)
+
+    plt.subplot(1, 3, 2)
+    plt.plot(t_manual, s_manual[2])
+    plt.axhline(np.pi / 2, ls="--")
+    plt.axhline(-np.pi / 2, ls="--")
+    plt.title(r"$\Delta \theta(t)$")
+    plt.grid(True)
+
+    plt.subplot(1, 3, 3)
+    plt.plot(t_manual, phi_manual)
+    plt.axhline(np.pi / 2, ls="--")
+    plt.axhline(-np.pi / 2, ls="--")
+    plt.title(r"$\Delta \phi(t)$")
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+    eig_manual = la.eigvals(Acl_manual)
+
+    print("Valeurs propres :")
+    print(eig_manual)
+
+    print("Stable asymptotiquement ?")
+    print(np.all(np.real(eig_manual) < 0))
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Les simulations permettent de vérifier que :
+
+    - $\Delta \theta(t) \to 0$ en environ 20 secondes,
+    - $|\Delta \theta(t)| < \pi/2$,
+    - $|\Delta \phi(t)| < \pi/2$.
+
+    Cependant, le modèle fermé final n’est pas asymptotiquement stable pour tout l’état réduit, car $x$ et $\dot{x}$ ne sont pas stabilisés.
+    """)
     return
 
 
@@ -1602,6 +1839,264 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ### On cherche maintenant une commande complète :
+
+    $$
+    K_{pp}
+    =
+    \begin{bmatrix}
+    k_x & k_v & k_\theta & k_\omega
+    \end{bmatrix}
+    $$
+
+    avec :
+
+    $$
+    \Delta \phi = -K_{pp}s_{red}.
+    $$
+
+    Le système fermé est :
+
+    $$
+    \dot{s}_{red}
+    =
+    (A_{red} - B_{red}K_{pp})s_{red}.
+    $$
+
+    Cette fois, on veut stabiliser tout l’état :
+
+    $$
+    \Delta x \to 0,
+    \qquad
+    \Delta \theta \to 0.
+    $$
+
+    Pour cela, on choisit directement les pôles du système fermé.
+
+    Les pôles doivent avoir des parties réelles négatives pour garantir la stabilité asymptotique.
+
+    Il faut faire un choix de poles qui donne une dynamique assez rapide pour converger en moins de 20 secondes, mais pas trop agressive afin de garder :
+
+    $$
+    |\Delta \phi| < \frac{\pi}{2}.
+    $$
+
+    (Voir code tests poles au dessous)
+
+    Ensuite, on utilise le placement de pôles pour calculer automatiquement $K_{pp}$ tel que les valeurs propres de :
+
+    $$
+    A_{red} - B_{red}K_{pp}
+    $$
+
+    soient les pôles choisis.
+    """)
+    return
+
+
+@app.cell
+def _(A_red, B_red, la, np, plt, scipy):
+    from scipy.signal import place_poles
+
+    def pole_placement(A_red, B_red):
+        # ------------------------------------------------------------
+        # Objectif :
+        # Trouver automatiquement des pôles qui stabilisent le système
+        # tout en respectant les contraintes :
+        #   - theta(t) -> 0
+        #   - x(t) -> 0
+        #   - |theta(t)| < pi/2
+        #   - |phi(t)| < pi/2
+        # ------------------------------------------------------------
+
+        # État initial :
+        # [Delta x, Delta vx, Delta theta, Delta omega]
+        s0 = np.array([0.0, 0.0, np.pi / 4, 0.0])
+
+        # Temps de simulation
+        T = 20.0
+        t_span = [0.0, T]
+        t = np.linspace(0.0, T, 2000)
+
+        # ------------------------------------------------------------
+        # Famille de pôles testés :
+        # lambda_i = -p * alpha_i
+        #
+        # p règle la vitesse globale.
+        # alpha rend les pôles distincts.
+
+        # ------------------------------------------------------------
+        alpha = np.array([1.0, 1.2, 1.4, 1.6])
+
+        # Pour converger en moins de 20 secondes :
+        # Ts ≈ 4 / p < 20  =>  p > 0.2
+        # On teste donc plusieurs valeurs de p au-dessus de 0.2
+        p_values = np.linspace(0.25, 1.2, 30)
+
+        best_result = None
+
+        # ------------------------------------------------------------
+        # Recherche automatique du meilleur p
+        # ------------------------------------------------------------
+        for p in p_values:
+            desired_poles = -p * alpha
+
+            try:
+                # Calcul du gain K par placement de pôles
+                placed = place_poles(A_red, B_red, desired_poles)
+                K = placed.gain_matrix
+
+                # Matrice du système fermé
+                A_cl = A_red - B_red @ K
+
+                # Dynamique fermée
+                def dyn(t_local, s):
+                    return A_cl @ s
+
+                # Simulation du modèle linéaire
+                sol = scipy.integrate.solve_ivp(
+                    dyn,
+                    t_span,
+                    s0,
+                    dense_output=True,
+                    max_step=0.01,
+                )
+
+                s = sol.sol(t)
+
+                # Commande :
+                # Delta phi = -K s
+                phi = -(K @ s).flatten()
+
+                # Mesures utilisées pour vérifier les contraintes
+                max_phi = np.max(np.abs(phi))
+                max_theta = np.max(np.abs(s[2]))
+
+                final_x = abs(s[0, -1])
+                final_theta = abs(s[2, -1])
+
+                eigvals = la.eigvals(A_cl)
+                stable = np.all(np.real(eigvals) < 0)
+
+                # Contraintes du problème
+                constraints_ok = (
+                    stable
+                    and max_phi < np.pi / 2
+                    and max_theta < np.pi / 2
+                    and final_x < 1e-2
+                    and final_theta < 1e-2
+                )
+
+                # Si les contraintes sont respectées, on garde le meilleur
+                # Ici, on minimise surtout l'amplitude de la commande phi
+                if constraints_ok:
+                    score = max_phi + final_x + final_theta
+
+                    if best_result is None or score < best_result["score"]:
+                        best_result = {
+                            "p": p,
+                            "poles": desired_poles,
+                            "K": K,
+                            "A_cl": A_cl,
+                            "t": t,
+                            "s": s,
+                            "phi": phi,
+                            "eigvals": eigvals,
+                            "max_phi": max_phi,
+                            "max_theta": max_theta,
+                            "final_x": final_x,
+                            "final_theta": final_theta,
+                            "score": score,
+                        }
+
+            except Exception:
+                # Si un choix de pôles échoue numériquement,
+                # on passe simplement au suivant.
+                pass
+
+
+        # ------------------------------------------------------------
+        # Résultat final
+        # ------------------------------------------------------------
+        K_pp = best_result["K"]
+        t = best_result["t"]
+        s = best_result["s"]
+        phi = best_result["phi"]
+
+        print("Meilleur choix trouvé :")
+        print("p =", best_result["p"])
+        print("pôles =", best_result["poles"])
+
+        print("\nK_pp =")
+        print(K_pp)
+
+        print("\nValeurs propres du système fermé :")
+        print(best_result["eigvals"])
+
+        print("\nMax |theta| =", best_result["max_theta"])
+        print("Max |phi| =", best_result["max_phi"])
+
+        print("\nFinal |x| =", best_result["final_x"])
+        print("Final |theta| =", best_result["final_theta"])
+
+        print("\nStable asymptotiquement ?")
+        print(np.all(np.real(best_result["eigvals"]) < 0))
+
+
+    
+        plt.figure(figsize=(12, 4))
+
+        plt.subplot(1, 3, 1)
+        plt.plot(t, s[0])
+        plt.title(r"$\Delta x(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 2)
+        plt.plot(t, s[2])
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(r"$\Delta \theta(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 3)
+        plt.plot(t, phi)
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(r"$\Delta \phi(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+        return K_pp
+
+
+    K_pp = pole_placement(A_red, B_red)
+    return (K_pp,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Après simulation, on vérifie que :
+
+    - $\Delta x(t) \to 0$ en moins de 20 secondes,
+    - $\Delta \theta(t) \to 0$ en moins de 20 secondes,
+    - $|\Delta \theta(t)| < \pi/2$,
+    - $|\Delta \phi(t)| < \pi/2$,
+    - toutes les valeurs propres ont une partie réelle négative.
+
+    Donc le contrôleur par placement de pôles satisfait les conditions demandées et le modèle fermé est asymptotiquement stable.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Controller Tuned with Optimal Control
 
     Using optimal control, find a gain matrix $K_{oc}$ that satisfies the same set of requirements that the one defined using pole placement.
@@ -1614,9 +2109,485 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ###On utilise une commande optimale LQR :
+
+    $$
+    \Delta \phi = -K_{oc}s_{red}.
+    $$
+
+    Le gain $K_{oc}$ est obtenu en minimisant :
+
+    $$
+    J =
+    \int_0^\infty
+    \left(
+    s_{red}^TQs_{red}
+    +
+    \Delta \phi^TR\Delta \phi
+    \right)dt.
+    $$
+
+    La matrice $Q$ pénalise les erreurs d’état, tandis que $R$ pénalise l’effort de commande.
+
+    Pour éviter un choix arbitraire de $Q$ et $R$, on teste automatiquement plusieurs valeurs.
+
+    On utilise l’hypothèse qualitative suivante :
+
+    - $x$ et $\theta$ doivent être fortement pénalisés, car on veut les ramener à zéro ;
+    - $\dot{x}$ et $\dot{\theta}$ sont aussi pénalisés, mais plus faiblement ;
+    - $R$ est testé sur plusieurs valeurs, car un grand $R$ donne une commande plus douce.
+
+    Pour chaque choix de $Q$ et $R$, on calcule $K_{oc}$ avec l’équation de Riccati :
+
+    $$
+    A_{red}^TP + PA_{red}
+    -
+    PB_{red}R^{-1}B_{red}^TP
+    +
+    Q = 0.
+    $$
+
+    Puis :
+
+    $$
+    K_{oc} = R^{-1}B_{red}^TP.
+    $$
+
+    Ensuite, on simule le système fermé et on garde seulement les choix qui vérifient :
+
+    $$
+    |\Delta \theta(t)| < \frac{\pi}{2},
+    \qquad
+    |\Delta \phi(t)| < \frac{\pi}{2},
+    $$
+
+    ainsi que :
+
+    $$
+    \Delta x(20) \approx 0,
+    \qquad
+    \Delta \theta(20) \approx 0.
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(A_red, B_red, la, np, plt, scipy):
+    from scipy.linalg import solve_continuous_are
+
+    def optimal_control(A_red, B_red):
+        # ------------------------------------------------------------
+        # Objectif : Trouver automatiquement un contrôleur LQR qui stabilise
+        #   - Delta x -> 0
+        #   - Delta theta -> 0
+        # tout en gardant :
+        #   - |theta| < pi/2
+        #   - |phi| < pi/2
+        # ------------------------------------------------------------
+
+        # État initial demandé :
+        # [Delta x, Delta vx, Delta theta, Delta omega]
+        s0 = np.array([0.0, 0.0, np.pi / 4, 0.0])
+
+        # Temps de simulation
+        T = 20.0
+        t_span = [0.0, T]
+        t = np.linspace(0.0, T, 2000)
+
+        # ------------------------------------------------------------
+        # Familles de matrices Q et R testées
+        #
+        # Q pénalise les erreurs d'état.
+        # R pénalise l'effort de commande phi.
+        #
+        # On teste plusieurs poids pour :
+        #   - x
+        #   - theta
+        #   - R
+        #
+        # Les vitesses ont des poids plus faibles.
+        # ------------------------------------------------------------
+
+        qx_values = [0.5, 1.0, 2.0, 5.0]
+        qtheta_values = [0.5, 1.0, 2.0, 5.0]
+        R_values = [5.0, 10.0, 20.0, 40.0, 80.0]
+
+        best_result = None
+
+        # ------------------------------------------------------------
+        # Recherche des bons paramètres Q et R
+        # ------------------------------------------------------------
+        for qx in qx_values:
+            for qtheta in qtheta_values:
+                for r in R_values:
+
+                    # Matrice Q :
+                    # poids fort sur x et theta,
+                    # poids plus faible sur les vitesses
+                    Q = np.diag([
+                        qx,          # poids sur Delta x
+                        0.1 * qx,    # poids sur Delta vx
+                        qtheta,      # poids sur Delta theta
+                        0.1 * qtheta # poids sur Delta omega
+                    ])
+
+                    # Matrice R :
+                    # plus R est grand, plus la commande phi est pénalisée
+                    R = np.array([[r]])
+
+                    try:
+                        # Résolution de l'équation de Riccati
+                        P = solve_continuous_are(A_red, B_red, Q, R)
+
+                        # Gain LQR
+                        K = la.solve(R, B_red.T @ P)
+
+                        # Matrice fermée
+                        A_cl = A_red - B_red @ K
+
+                        # Dynamique fermée
+                        def dyn(t_local, s):
+                            return A_cl @ s
+
+                        # Simulation
+                        sol = scipy.integrate.solve_ivp(
+                            dyn,
+                            t_span,
+                            s0,
+                            dense_output=True,
+                            max_step=0.01,
+                        )
+
+                        s = sol.sol(t)
+
+                        # Commande :
+                        # Delta phi = -K s
+                        phi = -(K @ s).flatten()
+
+                        # Mesures utiles
+                        eigvals = la.eigvals(A_cl)
+                        stable = np.all(np.real(eigvals) < 0)
+
+                        max_phi = np.max(np.abs(phi))
+                        max_theta = np.max(np.abs(s[2]))
+
+                        final_x = abs(s[0, -1])
+                        final_theta = abs(s[2, -1])
+
+                        # Contraintes demandées
+                        constraints_ok = (
+                            stable
+                            and max_phi < np.pi / 2
+                            and max_theta < np.pi / 2
+                            and final_x < 1e-2
+                            and final_theta < 1e-2
+                        )
+
+                        # Score :
+                        # on cherche une commande douce,
+                        # mais qui finit proche de l'équilibre
+                        if constraints_ok:
+                            score = max_phi + final_x + final_theta
+
+                            if best_result is None or score < best_result["score"]:
+                                best_result = {
+                                    "Q": Q,
+                                    "R": R,
+                                    "K": K,
+                                    "A_cl": A_cl,
+                                    "eigvals": eigvals,
+                                    "t": t,
+                                    "s": s,
+                                    "phi": phi,
+                                    "max_phi": max_phi,
+                                    "max_theta": max_theta,
+                                    "final_x": final_x,
+                                    "final_theta": final_theta,
+                                    "score": score,
+                                }
+
+                    except Exception:
+  
+                        pass
+
+
+        # ------------------------------------------------------------
+        if best_result is None:
+            print("Aucun choix de Q et R satisfaisant trouvé.")
+            return None
+
+        # ------------------------------------------------------------
+        K_oc = best_result["K"]
+        t = best_result["t"]
+        s = best_result["s"]
+        phi = best_result["phi"]
+
+        print("Meilleur choix trouvé :")
+        print("\nQ =")
+        print(best_result["Q"])
+
+        print("\nR =")
+        print(best_result["R"])
+
+        print("\nK_oc =")
+        print(K_oc)
+
+        print("\nValeurs propres du système fermé :")
+        print(best_result["eigvals"])
+
+        print("\nMax |theta| =", best_result["max_theta"])
+        print("Max |phi| =", best_result["max_phi"])
+
+        print("\nFinal |x| =", best_result["final_x"])
+        print("Final |theta| =", best_result["final_theta"])
+
+        print("\nStable asymptotiquement ?")
+        print(np.all(np.real(best_result["eigvals"]) < 0))
+
+        # ------------------------------------------------------------
+        plt.figure(figsize=(12, 4))
+
+        plt.subplot(1, 3, 1)
+        plt.plot(t, s[0])
+        plt.title(r"$\Delta x(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 2)
+        plt.plot(t, s[2])
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(r"$\Delta \theta(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 3)
+        plt.plot(t, phi)
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(r"$\Delta \phi(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+        return K_oc
+
+
+    K_oc = optimal_control(A_red, B_red)
+    return (K_oc,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    on a vérifié que :
+
+    - $\Delta x(t) \to 0$ en moins de 20 secondes,
+    - $\Delta \theta(t) \to 0$ en moins de 20 secondes,
+    - $|\Delta \phi(t)| < \pi/2$,
+    - les valeurs propres de $A_{red} - B_{red}K_{oc}$ ont une partie réelle négative.
+
+    Donc le contrôleur optimal obtenu satisfait les conditions demandées.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## 🧩 Validation
 
     Test the two control strategies (pole placement and optimal control) on the "true" (nonlinear) model with an animation. Check that both controllers achieve their goal; otherwise, go back to the drawing board and tweak the design parameters until they do!
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    On teste maintenant les deux contrôleurs sur le modèle non linéaire.
+
+    Les contrôleurs ont été conçus avec le modèle latéral linéarisé :
+
+    $$
+    s_{red} =
+    \begin{bmatrix}
+    x \\
+    \dot{x} \\
+    \theta \\
+    \dot{\theta}
+    \end{bmatrix}.
+    $$
+
+    Dans le modèle non linéaire, l’état complet est :
+
+    $$
+    s =
+    \begin{bmatrix}
+    x \\
+    \dot{x} \\
+    y \\
+    \dot{y} \\
+    \theta \\
+    \dot{\theta}
+    \end{bmatrix}.
+    $$
+
+    On extrait donc seulement l’état latéral :
+
+    $$
+    s_{lat} =
+    \begin{bmatrix}
+    x \\
+    \dot{x} \\
+    \theta \\
+    \dot{\theta}
+    \end{bmatrix}.
+    $$
+
+    Puis on applique :
+
+    $$
+    \phi = -Ks_{lat}.
+    $$
+
+    On garde une poussée constante :
+
+    $$
+    f = Mg.
+    $$
+
+    On teste successivement :
+
+    - le contrôleur par placement de pôles $K_{pp}$,
+    - le contrôleur optimal $K_{oc}$.
+
+    Pour éviter une orientation irréaliste du moteur, on limite la commande :
+
+    $$
+    -\frac{\pi}{2} < \phi < \frac{\pi}{2}.
+    $$
+    """)
+    return
+
+
+@app.cell
+def _(M, booster_anim, g, mo, np, plt, redstart_solve, world):
+    def validation_nonlinear_controller(K, title):
+        T = 20.0
+        t_span = [0.0, T]
+
+        # état initial : x, vx, y, vy, theta, omega
+        y0 = [0.0, 0.0, 10.0, 0.0, np.pi / 4, 0.0]
+
+        def f_phi(t, state):
+            x, vx, y, vy, theta, omega = state
+
+            s_lat = np.array([x, vx, theta, omega])
+            phi = float(-(K @ s_lat)[0])
+
+            # On garde phi dans l'intervalle autorisé
+            phi = np.clip(phi, -np.pi / 2 + 1e-3, np.pi / 2 - 1e-3)
+
+            f = M * g
+
+            return np.array([f, phi])
+
+        sol = redstart_solve(t_span, y0, f_phi)
+
+        t = np.linspace(0.0, T, 2000)
+        states = sol(t)
+
+        phi_values = np.array([
+            f_phi(t[i], states[:, i])[1]
+            for i in range(len(t))
+        ])
+
+        # Graphes
+        plt.figure(figsize=(12, 4))
+
+        plt.subplot(1, 3, 1)
+        plt.plot(t, states[0])
+        plt.title(title + r" : $x(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 2)
+        plt.plot(t, states[4])
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(title + r" : $\theta(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.subplot(1, 3, 3)
+        plt.plot(t, phi_values)
+        plt.axhline(np.pi / 2, ls="--")
+        plt.axhline(-np.pi / 2, ls="--")
+        plt.title(title + r" : $\phi(t)$")
+        plt.xlabel("temps")
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+
+        # Animation
+        x_fun = lambda tau: sol(tau)[0]
+        y_fun = lambda tau: sol(tau)[2]
+        theta_fun = lambda tau: sol(tau)[4]
+        f_fun = lambda tau: f_phi(tau, sol(tau))[0]
+        phi_fun = lambda tau: f_phi(tau, sol(tau))[1]
+
+        anim = mo.Html(
+            world(
+                [-8, 8, -2, 12],
+                booster_anim(x_fun, y_fun, theta_fun, f_fun, phi_fun, T=T),
+            )
+        ).center()
+
+        print(title)
+        print("Max |phi| =", np.max(np.abs(phi_values)))
+        print("État final :")
+        print(states[:, -1])
+
+        return anim
+
+    return (validation_nonlinear_controller,)
+
+
+@app.cell
+def _(K_pp, validation_nonlinear_controller):
+    validation_nonlinear_controller(K_pp, "Placement de pôles")
+    return
+
+
+@app.cell
+def _(K_oc, validation_nonlinear_controller):
+    validation_nonlinear_controller(K_oc, "Commande optimale LQR")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Conclusions :
+
+    Les simulations et animations montrent que les deux contrôleurs ramènent le booster vers une position verticale.
+
+    Le contrôleur par placement de pôles stabilise rapidement le système.
+
+    Le contrôleur optimal LQR donne une commande plus douce.
+
+    Dans les deux cas, on vérifie que la commande reste bornée avec :
+
+    $$
+    |\phi| < \frac{\pi}{2}.
+    $$
+
+    Donc les deux stratégies atteignent l’objectif sur le modèle non linéaire.
     """)
     return
 
