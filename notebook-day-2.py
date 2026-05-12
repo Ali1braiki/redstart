@@ -1322,7 +1322,7 @@ def _(A, B, la, np):
     # Vérification du rang
     rang_C = la.matrix_rank(C)
     print(f"Rang de la matrice C : {rang_C}")
-    return (rang_C,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -1391,7 +1391,7 @@ def _(mo):
 
 
 @app.cell
-def _(J, M, g, l, la, np, rang_C):
+def _(J, M, g, l, la, np):
     # Définition des matrices avec la nouvelle notation 'red'
     A_red = np.array([
         [0, 1,  0, 0],
@@ -1419,7 +1419,7 @@ def _(J, M, g, l, la, np, rang_C):
 
     print("Matrice A_red :\n", A_red)
     print("\nMatrice B_red :\n", B_red)
-    print(f"\nRang de la matrice de commandabilité : {rang_C}")
+    print(f"\nRang de la matrice de commandabilité : {rang_C_red}")
     print(f"Le système réduit est-il commandable ? {rang_C_red == N}")
     return (A_red,)
 
@@ -1552,6 +1552,11 @@ def _(mo):
 
     Is your final closed-loop model asymptotically stable?
     """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
     return
 
 
