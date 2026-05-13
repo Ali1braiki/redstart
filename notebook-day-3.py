@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.20.4"
-app = marimo.App()
+app = marimo.App(app_title="")
 
 
 @app.cell
@@ -3129,7 +3129,7 @@ def _(M, g, l, np):
             d3h[0], d3h[1],
         ])
 
-    return
+    return (Tr,)
 
 
 @app.cell(hide_code=True)
@@ -3143,6 +3143,252 @@ def _(mo):
     Implement the corresponding function `T_inv`.
     """)
     return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    -------------------------
+
+    On suppose que
+    \[
+    z<0.
+    \]
+
+    On veut retrouver
+    \[
+    x,\dot x,y,\dot y,\theta,\dot\theta,z,\dot z
+    \]
+    à partir de
+    \[
+    h,\dot h,\ddot h,h^{(3)}.
+    \]
+
+    On part de la relation
+    \[
+    \ddot h
+    =
+    \frac{z}{M}e(\theta)
+    -
+    \begin{pmatrix}
+    0\\
+    g
+    \end{pmatrix}.
+    \]
+
+    Donc
+    \[
+    \ddot h+
+    \begin{pmatrix}
+    0\\
+    g
+    \end{pmatrix}
+    =
+    \frac{z}{M}e(\theta).
+    \]
+
+    Comme \(e(\theta)\) est unitaire, on a
+    \[
+    \left\|
+    \ddot h+
+    \begin{pmatrix}
+    0\\
+    g
+    \end{pmatrix}
+    \right\|
+    =
+    \left|
+    \frac{z}{M}
+    \right|.
+    \]
+
+    Comme \(M>0\) et que l’on suppose \(z<0\), on obtient
+    \[
+    \boxed{
+    z
+    =
+    -M
+    \left\|
+    \ddot h+
+    \begin{pmatrix}
+    0\\
+    g
+    \end{pmatrix}
+    \right\|.
+    }
+    \]
+
+    Une fois \(z\) connu,
+    \[
+    e(\theta)
+    =
+    \frac{M}{z}
+    \left(
+    \ddot h+
+    \begin{pmatrix}
+    0\\
+    g
+    \end{pmatrix}
+    \right).
+    \]
+
+    Or
+    \[
+    e(\theta)
+    =
+    \begin{pmatrix}
+    \sin\theta\\
+    -\cos\theta
+    \end{pmatrix}.
+    \]
+
+    Donc si
+    \[
+    e(\theta)=
+    \begin{pmatrix}
+    e_1\\
+    e_2
+    \end{pmatrix},
+    \]
+    alors
+    \[
+    \sin\theta=e_1,
+    \qquad
+    \cos\theta=-e_2.
+    \]
+
+    On récupère donc
+    \[
+    \boxed{
+    \theta=\operatorname{arg}(e_2 - i.e_1).
+    }
+    \]
+
+    Ensuite, on utilise
+    \[
+    h^{(3)}
+    =
+    \frac{\dot z}{M}e(\theta)
+    +
+    \frac{z\dot\theta}{M}n(\theta).
+    \]
+
+    On projette d’abord sur \(e(\theta)\). Comme \(e^\top n=0\) et \(e^\top e=1\),
+    \[
+    e^\top h^{(3)}
+    =
+    \frac{\dot z}{M}.
+    \]
+
+    Donc
+    \[
+    \boxed{
+    \dot z=M e(\theta)^\top h^{(3)}.
+    }
+    \]
+
+    On projette ensuite sur \(n(\theta)\). Comme \(n^\top e=0\) et \(n^\top n=1\),
+    \[
+    n^\top h^{(3)}
+    =
+    \frac{z\dot\theta}{M}.
+    \]
+
+    Donc
+    \[
+    \boxed{
+    \dot\theta=
+    \frac{M}{z}n(\theta)^\top h^{(3)}.
+    }
+    \]
+
+    Il reste à retrouver \(x,y,\dot x,\dot y\).
+
+    À partir de
+    \[
+    h_x=x-\frac{\ell}{6}\sin\theta,
+    \]
+    on obtient
+    \[
+    \boxed{
+    x=h_x+\frac{\ell}{6}\sin\theta.
+    }
+    \]
+
+    À partir de
+    \[
+    h_y=y+\frac{\ell}{6}\cos\theta,
+    \]
+    on obtient
+    \[
+    \boxed{
+    y=h_y-\frac{\ell}{6}\cos\theta.
+    }
+    \]
+
+    Enfin,
+    \[
+    \dot h_x
+    =
+    \dot x-\frac{\ell}{6}\cos\theta\,\dot\theta,
+    \]
+    donc
+    \[
+    \boxed{
+    \dot x=\dot h_x+\frac{\ell}{6}\cos\theta\,\dot\theta.
+    }
+    \]
+
+    Et
+    \[
+    \dot h_y
+    =
+    \dot y-\frac{\ell}{6}\sin\theta\,\dot\theta,
+    \]
+    donc
+    \[
+    \boxed{
+    \dot y=\dot h_y+\frac{\ell}{6}\sin\theta\,\dot\theta.
+    }
+    \]
+
+    On a donc bien une inversion unique tant que \(z<0\).
+    """)
+    return
+
+
+@app.cell
+def _(M, g, l, np):
+    def T_inv(h_x, h_y, dh_x, dh_y, d2h_x, d2h_y, d3h_x, d3h_y):
+        shifted_d2h = np.array([d2h_x, d2h_y + g])
+        norm_shifted = np.linalg.norm(shifted_d2h)
+
+        if norm_shifted <= 1e-12:
+            raise ValueError("Singularité : z est trop proche de 0.")
+
+        z = -M * norm_shifted
+
+        e = (M / z) * shifted_d2h
+        theta = np.arctan2(e[0], -e[1])
+
+        s = np.sin(theta)
+        c = np.cos(theta)
+
+        n = np.array([c, s])
+        d3h = np.array([d3h_x, d3h_y])
+
+        dz = M * np.dot(e, d3h)
+        dtheta = (M / z) * np.dot(n, d3h)
+
+        x = h_x + (l / 6) * s
+        y = h_y - (l / 6) * c
+
+        dx = dh_x + (l / 6) * c * dtheta
+        dy = dh_y + (l / 6) * s * dtheta
+
+        return np.array([x, dx, y, dy, theta, dtheta, z, dz])
+
+    return (T_inv,)
 
 
 @app.cell(hide_code=True)
@@ -3181,6 +3427,139 @@ def _(mo):
     return
 
 
+@app.cell
+def _(M, T_inv, Tr, l, np):
+    def compute(
+        x_0,
+        dx_0,
+        y_0,
+        dy_0,
+        theta_0,
+        dtheta_0,
+        z_0,
+        dz_0,
+        x_tf,
+        dx_tf,
+        y_tf,
+        dy_tf,
+        theta_tf,
+        dtheta_tf,
+        z_tf,
+        dz_tf,
+        tf,
+    ):
+        import math
+
+        def poly7_coeffs(initial_values, final_values, tf):
+            A_mat = np.zeros((8, 8))
+            b_vec = np.zeros(8)
+
+            for k in range(4):
+                A_mat[k, k] = math.factorial(k)
+                b_vec[k] = initial_values[k]
+
+            for k in range(4):
+                row = 4 + k
+                for i in range(k, 8):
+                    A_mat[row, i] = (
+                        math.factorial(i)
+                        / math.factorial(i - k)
+                        * tf ** (i - k)
+                    )
+                b_vec[row] = final_values[k]
+
+            return np.linalg.solve(A_mat, b_vec)
+
+        def poly_eval(coeffs, t, order):
+            value = 0.0
+            for i in range(order, len(coeffs)):
+                value += (
+                    coeffs[i]
+                    * math.factorial(i)
+                    / math.factorial(i - order)
+                    * t ** (i - order)
+                )
+            return value
+
+        def force_to_f_phi(fx, fy, theta):
+            f = np.sqrt(fx ** 2 + fy ** 2)
+
+            if f <= 1e-12:
+                return 0.0, 0.0
+
+            angle = np.arctan2(-fx, fy)
+            phi = angle - theta
+            phi = (phi + np.pi) % (2 * np.pi) - np.pi
+
+            return f, phi
+
+        Tr_0 = Tr(x_0, dx_0, y_0, dy_0, theta_0, dtheta_0, z_0, dz_0)
+        Tr_tf = Tr(x_tf, dx_tf, y_tf, dy_tf, theta_tf, dtheta_tf, z_tf, dz_tf)
+
+        coeffs_hx = poly7_coeffs(
+            [Tr_0[0], Tr_0[2], Tr_0[4], Tr_0[6]],
+            [Tr_tf[0], Tr_tf[2], Tr_tf[4], Tr_tf[6]],
+            tf,
+        )
+
+        coeffs_hy = poly7_coeffs(
+            [Tr_0[1], Tr_0[3], Tr_0[5], Tr_0[7]],
+            [Tr_tf[1], Tr_tf[3], Tr_tf[5], Tr_tf[7]],
+            tf,
+        )
+
+        def fun(t):
+            h_x = poly_eval(coeffs_hx, t, 0)
+            h_y = poly_eval(coeffs_hy, t, 0)
+
+            dh_x = poly_eval(coeffs_hx, t, 1)
+            dh_y = poly_eval(coeffs_hy, t, 1)
+
+            d2h_x = poly_eval(coeffs_hx, t, 2)
+            d2h_y = poly_eval(coeffs_hy, t, 2)
+
+            d3h_x = poly_eval(coeffs_hx, t, 3)
+            d3h_y = poly_eval(coeffs_hy, t, 3)
+
+            d4h_x = poly_eval(coeffs_hx, t, 4)
+            d4h_y = poly_eval(coeffs_hy, t, 4)
+
+            x, dx, y, dy, theta, dtheta, z, dz = T_inv(
+                h_x,
+                h_y,
+                dh_x,
+                dh_y,
+                d2h_x,
+                d2h_y,
+                d3h_x,
+                d3h_y,
+            )
+
+            s = np.sin(theta)
+            c = np.cos(theta)
+
+            e = np.array([s, -c])
+            n = np.array([c, s])
+
+            u = np.array([d4h_x, d4h_y])
+
+            v2 = M * np.dot(n, u) - 2 * dz * dtheta
+
+            q1 = z - M * l * dtheta ** 2 / 6
+            q2 = M * l * v2 / (6 * z)
+
+            fx = s * q1 + c * q2
+            fy = -c * q1 + s * q2
+
+            f, phi = force_to_f_phi(fx, fy, theta)
+
+            return np.array([x, dx, y, dy, theta, dtheta, z, dz, f, phi])
+
+        return fun
+
+    return (compute,)
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -3193,6 +3572,183 @@ def _(mo):
     - `tf = 10.0`.
 
     Make the graph of the relevant variables as a function of time, then make an animation out of the same result. Comment and iterate if necessary!
+    """)
+    return
+
+
+@app.cell
+def _(M, compute, g, l, mo, np, plt):
+    def exact_linearization_validation():
+        tf = 10.0
+
+        fun = compute(
+            5.0, 0.0, 20.0, -1.0, -np.pi / 8, 0.0, -M * g, 0.0,
+            0.0, 0.0, 2 / 3 * l, 0.0, 0.0, 0.0, -M * g, 0.0,
+            tf,
+        )
+
+        t = np.linspace(0.0, tf, 1000)
+        values = np.array([fun(ti) for ti in t])
+
+        x, dx, y, dy = values[:, 0], values[:, 1], values[:, 2], values[:, 3]
+        theta, dtheta = values[:, 4], values[:, 5]
+        z, dz = values[:, 6], values[:, 7]
+        f, phi = values[:, 8], values[:, 9]
+
+        print("État initial calculé :")
+        print(values[0])
+
+        print("\nÉtat final calculé :")
+        print(values[-1])
+
+        print("\nVérifications :")
+        print(f"min(z) = {np.min(z):.6f}")
+        print(f"max(z) = {np.max(z):.6f}")
+        print(f"min(f) = {np.min(f):.6f}")
+        print(f"max(f) = {np.max(f):.6f}")
+        print(f"max |theta| = {np.max(np.abs(theta)):.6f} rad")
+        print(f"max |phi| = {np.max(np.abs(phi)):.6f} rad")
+
+        target_initial = np.array([5.0, 0.0, 20.0, -1.0, -np.pi / 8, 0.0, -M * g, 0.0])
+        target_final = np.array([0.0, 0.0, 2 / 3 * l, 0.0, 0.0, 0.0, -M * g, 0.0])
+    
+        print("Erreur initiale :", np.linalg.norm(values[0, :8] - target_initial))
+        print("Erreur finale :", np.linalg.norm(values[-1, :8] - target_final))
+        print("min z(t) :", np.min(z))
+        print("max |phi(t)| :", np.max(np.abs(phi)))
+        fig, axes = plt.subplots(5, 1, sharex=True, figsize=(12, 12))
+
+        axes[0].plot(t, x, label=r"$x(t)$")
+        axes[0].plot(t, y, label=r"$y(t)$")
+        axes[0].grid(True)
+        axes[0].legend()
+
+        axes[1].plot(t, dx, label=r"$\dot{x}(t)$")
+        axes[1].plot(t, dy, label=r"$\dot{y}(t)$")
+        axes[1].grid(True)
+        axes[1].legend()
+
+        axes[2].plot(t, theta, label=r"$\theta(t)$")
+        axes[2].plot(t, dtheta, label=r"$\dot{\theta}(t)$")
+        axes[2].grid(True)
+        axes[2].legend()
+
+        axes[3].plot(t, z, label=r"$z(t)$")
+        axes[3].plot(t, dz, label=r"$\dot z(t)$")
+        axes[3].axhline(0.0, linestyle="--", label=r"$z=0$")
+        axes[3].grid(True)
+        axes[3].legend()
+
+        axes[4].plot(t, f, label=r"$f(t)$")
+        axes[4].plot(t, phi, label=r"$\phi(t)$")
+        axes[4].set_xlabel("time $t$")
+        axes[4].grid(True)
+        axes[4].legend()
+
+        return mo.center(fig)
+
+    exact_linearization_validation()
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell
+def _(M, booster_anim, compute, g, l, mo, np, world):
+    def exact_linearization_animation():
+        tf = 10.0
+
+        fun = compute(
+            5.0, 0.0, 20.0, -1.0, -np.pi / 8, 0.0, -M * g, 0.0,
+            0.0, 0.0, 2 / 3 * l, 0.0, 0.0, 0.0, -M * g, 0.0,
+            tf,
+        )
+
+        def x_fun(t):
+            return fun(t)[0]
+
+        def y_fun(t):
+            return fun(t)[2]
+
+        def theta_fun(t):
+            return fun(t)[4]
+
+        def f_fun(t):
+            return fun(t)[8]
+
+        def phi_fun(t):
+            return fun(t)[9]
+
+        return mo.Html(
+            world(
+                [-2, 7, -2, 22],
+                booster_anim(x_fun, y_fun, theta_fun, f_fun, phi_fun, T=tf),
+            )
+        ).center()
+
+    exact_linearization_animation()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Commentaire sur la validation numérique
+
+    Les valeurs calculées au temps initial et au temps final correspondent bien aux contraintes imposées. Les petites différences visibles, par exemple les valeurs de l’ordre de \(10^{-14}\), sont des erreurs numériques dues à la résolution du système linéaire définissant les polynômes et aux calculs en virgule flottante.
+
+    Les erreurs globales sont :
+    \[
+    \|s(0)-s_0\| \approx 5.0\times 10^{-15},
+    \qquad
+    \|s(t_f)-s_f\| \approx 1.8\times 10^{-13}.
+    \]
+    Ces valeurs sont négligeables à l’échelle du problème, donc les conditions de bord sont bien respectées.
+
+    On vérifie aussi que
+    \[
+    z(t)<0
+    \]
+    sur toute la trajectoire, puisque
+    \[
+    \min z(t)\approx -2.183,
+    \qquad
+    \max z(t)\approx -0.395.
+    \]
+    L’hypothèse utilisée dans l’inversion \(T^{-1}\), à savoir \(z<0\), reste donc valide pendant tout le mouvement.
+
+    Les commandes reconstruites restent également raisonnables :
+    \[
+    0.663 \leq f(t) \leq 2.184,
+    \]
+    donc la poussée reste positive. De plus,
+    \[
+    \max |\phi(t)|\approx 0.769\text{ rad}<\frac{\pi}{2},
+    \]
+    ce qui signifie que l’orientation de la poussée reste dans un domaine acceptable.
+
+    Enfin,
+    \[
+    \max |\theta(t)|\approx 1.348\text{ rad}<\frac{\pi}{2}.
+    \]
+    Le booster reste donc dans une plage angulaire cohérente avec les hypothèses géométriques du modèle.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Conclusion
+
+    La trajectoire construite par linéarisation exacte est admissible. Les conditions initiales et finales sont satisfaites avec des erreurs numériques négligeables, de l’ordre de \(10^{-13}\) au maximum.
+
+    La contrainte essentielle \(z(t)<0\) est vérifiée sur tout l’intervalle de temps, ce qui garantit que la transformation inverse utilisée pour reconstruire l’état du booster reste bien définie.
+
+    Les commandes obtenues sont cohérentes : la poussée \(f(t)\) reste positive et l’angle de poussée \(\phi(t)\) reste strictement inférieur à \(\pi/2\) en valeur absolue. L’angle du booster \(\theta(t)\) reste aussi inférieur à \(\pi/2\), ce qui confirme que la trajectoire reste dans le domaine de validité attendu.
     """)
     return
 
